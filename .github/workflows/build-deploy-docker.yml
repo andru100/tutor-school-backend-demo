@@ -1,0 +1,67 @@
+on: [push]
+name: Linux_Container_Workflow
+
+jobs:
+    build-and-deploy:
+        runs-on: ubuntu-latest
+        steps:
+        # checkout the repo
+        - name: 'Checkout GitHub Action'
+          uses: actions/checkout@main
+
+        - name: 'Login via Azure CLI'
+          uses: azure/login@v1
+          with:
+            creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+        - name: 'Build and push image'
+          uses: azure/docker-login@v1
+          with:
+            login-server: ${{ secrets.REGISTRY_LOGIN_SERVER }}
+            username: ${{ secrets.REGISTRY_USERNAME }}
+            password: ${{ secrets.REGISTRY_PASSWORD }}
+        - run: |
+            docker build . -t ${{ secrets.REGISTRY_LOGIN_SERVER }}/tutor-school-backend:${{ github.sha }}
+            docker push ${{ secrets.REGISTRY_LOGIN_SERVER }}/tutor-school-backend:${{ github.sha }}
+
+        - name: 'Deploy to Azure Container Instances'
+          uses: 'azure/aci-deploy@v1'
+          with:
+            resource-group: ${{ secrets.RESOURCE_GROUP }}
+            dns-name-label: tutor-school-backend-demo
+            image: ${{ secrets.REGISTRY_LOGIN_SERVER }}/tutor-school-backend:${{ github.sha }}
+            registry-login-server: ${{ secrets.REGISTRY_LOGIN_SERVER }}
+            registry-username: ${{ secrets.REGISTRY_USERNAME }}
+            registry-password: ${{ secrets.REGISTRY_PASSWORD }}
+            name: tutor-school-backend-demo
+            location: 'west europe' 
+            environment-variables: |
+              ALLOWED_CORS_ORIGIN=${{ secrets.ALLOWED_CORS_ORIGIN }}
+              JWT_SECURITY_KEY=${{ secrets.JWT_SECURITY_KEY }}
+              ANALYSE_IMAGE_BACKEND=${{ secrets.ANALYSE_IMAGE_BACKEND }}
+              ANALYSE_DOCUMENT_BACKEND=${{ secrets.ANALYSE_DOCUMENT_BACKEND }}
+              DB_HOST=${{ secrets.DB_HOST }}
+              DB_PORT=${{ secrets.DB_PORT }}
+              DB_USERNAME=${{ secrets.DB_USERNAME }}
+              DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+              DB_NAME=${{ secrets.DB_NAME }}
+              DB_INCLUDE_ERROR_DETAIL=${{ secrets.DB_INCLUDE_ERROR_DETAIL }}
+              GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}
+              GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}
+              GOOGLE_REDIRECT_URI=${{ secrets.GOOGLE_REDIRECT_URI }}
+              GOOGLE_OAUTH_API_ADDRESS=${{ secrets.GOOGLE_OAUTH_API_ADDRESS }}
+              AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
+              AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
+              AWS_SENDER_EMAIL=${{ secrets.AWS_SENDER_EMAIL }}
+              AWS_BUCKET_NAME=${{ secrets.AWS_BUCKET_NAME }}
+              OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+              OPENAI_API_ADDRESS=${{ secrets.OPENAI_API_ADDRESS }}
+              ENABLE_AI_HOMEWORK_FEEDBACK=${{ secrets.ENABLE_AI_HOMEWORK_FEEDBACK }}
+              NUMBER_OF_ASSESSMENTS=${{ secrets.NUMBER_OF_ASSESSMENTS }}
+            container-group: |
+              containers:
+                - name: tutor-school-backend
+                  properties:
+                    ports:
+                      - port: 80
+

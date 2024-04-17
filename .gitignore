@@ -1,0 +1,8 @@
+secrets.json
+enpoint_tests.yml
+bin
+Migrations
+obj
+Properties
+devcontainer.env
+appsettings.Development.json
