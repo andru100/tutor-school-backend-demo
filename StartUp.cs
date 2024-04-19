@@ -52,10 +52,14 @@ namespace Main
             {
                 options.AddDefaultPolicy(policy =>
                 {
-                    policy.WithOrigins(Configuration["ALLOWED_CORS_ORIGIN"])
+                    // policy.WithOrigins(Configuration["ALLOWED_CORS_ORIGIN"])
+                    //     .AllowAnyHeader()
+                    //     .AllowAnyMethod()
+                    //     .AllowCredentials();
+
+                    policy.AllowAnyOrigin()
                         .AllowAnyHeader()
-                        .AllowAnyMethod()
-                        .AllowCredentials();
+                        .AllowAnyMethod();
                 });
             });
             
