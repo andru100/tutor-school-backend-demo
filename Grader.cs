@@ -19,6 +19,7 @@ public class AssessmentGrader
             assignment.score = CalculateOverallScore(assignment, assessment);
             assignment.topicScores = CalculateTopicScores(assignment, assessment);
             assignment.isGraded = true;
+            assignment.gradedDate = DateTime.UtcNow;
 
             // Log a specific topic score before returning
             Console.WriteLine("Topic score before returning:");

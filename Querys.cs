@@ -413,7 +413,9 @@ namespace AccountController
                     .FirstOrDefaultAsync();
 
                 if (foundTeacher != null)
-                {
+                {   
+
+                    Console.WriteLine("returned teacher data");
                     return Ok(foundTeacher);
                 }
                 else

@@ -93,6 +93,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             entity.Property(e => e.isAssigned).HasColumnName("is_assigned");
             entity.Property(e => e.isSubmitted).HasColumnName("is_submitted");
             entity.Property(e => e.isGraded).HasColumnName("is_graded");
+            entity.Property(e => e.gradedDate).HasColumnName("gradedDate");
             entity.Property(e => e.grade).HasColumnName("grade");
             entity.Property(e => e.teacherFeedback).HasColumnName("teacher_feedback");
             entity.Property(e => e.aiFeedback).HasColumnName("ai_feedback");
@@ -127,6 +128,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             entity.Property(e => e.isSubmitted).HasColumnName("is_submitted");
             entity.Property(e => e.submissionDate).HasColumnName("submission_date");
             entity.Property(e => e.isGraded).HasColumnName("is_graded");
+            entity.Property(e => e.gradedDate).HasColumnName("gradedDate");
             entity.Property(e => e.score).HasColumnName("score");
             entity.Property(e => e.duration).HasColumnName("duration");
 

@@ -160,6 +160,7 @@ public class StudentAssessmentAssignment : Event
     public bool isAssigned { get; set; }
     public bool isSubmitted { get; set; }
     public bool isGraded { get; set; }
+    public DateTime? gradedDate { get; set; }
     public int? duration { get; set; }
     public double? score { get; set; }
     public DateTime? submissionDate { get; set; }
@@ -205,6 +206,7 @@ public class HomeworkAssignment : Event
     public bool isAssigned { get; set; }
     public bool isSubmitted { get; set; }
     public bool isGraded { get; set; }
+    public DateTime? gradedDate { get; set; }
     public int? grade { get; set; }
     public string? aiFeedback { get; set; }
     public string? teacherFeedback { get; set; }
