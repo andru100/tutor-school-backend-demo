@@ -25,7 +25,7 @@ using Stripe.Checkout;
 
 
 using AWSEmail;
-
+using GetStudent;
 using Model;
 using seed;
 
@@ -63,7 +63,6 @@ namespace Main
                 });
             });
             
-            //string connectionString = $"Host={Environment.GetEnvironmentVariable("DB_HOST")};Port={Environment.GetEnvironmentVariable("DB_PORT")};Username={Environment.GetEnvironmentVariable("DB_USERNAME")};Password={Environment.GetEnvironmentVariable("DB_PASSWORD")};Database={Environment.GetEnvironmentVariable("DB_NAME")};";
             string connectionString = $"Host={Environment.GetEnvironmentVariable("DB_HOST")};Port={Environment.GetEnvironmentVariable("DB_PORT")};Username={Environment.GetEnvironmentVariable("DB_USERNAME")};Password={Environment.GetEnvironmentVariable("DB_PASSWORD")};Database={Environment.GetEnvironmentVariable("DB_NAME")};IncludeErrorDetail=true;";
             Console.WriteLine("connection string is: " + connectionString);
             services.AddDbContext<ApplicationDbContext>(options =>
@@ -109,6 +108,7 @@ namespace Main
             
 
             services.AddScoped<AWSEmailSender>();  
+            services.AddScoped<GetStudentService>();
         }
 
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env)

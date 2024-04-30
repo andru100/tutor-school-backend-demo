@@ -2,16 +2,21 @@ using Amazon;
 using Amazon.S3;
 using Amazon.S3.Transfer;
 using System.Security.Claims;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Http; 
 using Microsoft.AspNetCore.Mvc;
 using System.IO;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
+using AccountController; 
 using Amazon.S3.Model;
 using System;
 using Model;
 using Ai;
+using GetStudent;
+
+
 
 
 namespace HomeworkUpload;
@@ -24,19 +29,24 @@ public class UploadController  : ControllerBase
     private readonly ApplicationDbContext _dbContext;
     private readonly HttpClient _httpClient;
     private readonly IConfiguration _configuration;
+    private readonly UserManager<ApplicationUser> _userManager;
     private readonly string _awsAccessKeyId;
     private readonly string _awsSecretAccessKey;
     private readonly string _awsBucketName;
-    
+    private readonly GetStudentService _getStudentService;
 
-    public UploadController(ApplicationDbContext dbContext, IConfiguration configuration, HttpClient httpClient)
+  
+
+    public UploadController(ApplicationDbContext dbContext, IConfiguration configuration, HttpClient httpClient, UserManager<ApplicationUser> userManager, GetStudentService getStudentService)
     {
         _dbContext = dbContext;
         _httpClient = httpClient;
         _configuration = configuration;
+        _userManager = userManager;
         _awsAccessKeyId = _configuration["AWS_ACCESS_KEY_ID"];
         _awsSecretAccessKey = _configuration["AWS_SECRET_ACCESS_KEY"];
         _awsBucketName = _configuration["AWS_BUCKET_NAME"];
+        _getStudentService = getStudentService;
     }
 
     [HttpPost("ProfileImgUpload")] 
@@ -145,7 +155,7 @@ public class UploadController  : ControllerBase
 
                 if (homework != null)
                 {
-                    if (IsAiHomeworkFeedbackEnabled()) // Check if AiHomeworkFeedback is enabled
+                    if (IsAiHomeworkFeedbackEnabled()) 
                     {
                         var img2txt = new TxtExtractor(_httpClient, _configuration);
                         var text = await img2txt.AnalyseImage(fileUrl);
@@ -156,7 +166,6 @@ public class UploadController  : ControllerBase
                         
                         var aiTeacher = new Assistant(_httpClient, _configuration);
                         var aiFeedback = await aiTeacher.HomeworkFeedbackAgent(HomeworkInput);
-                        Console.WriteLine("feedback is: " + aiFeedback);
 
                         homework.isSubmitted = true;
                         homework.submissionContentType = SubmissionContentType.Image;
@@ -166,8 +175,8 @@ public class UploadController  : ControllerBase
                         homework.submissionDate = DateTime.UtcNow;
                         _dbContext.Update(homework);
                         await _dbContext.SaveChangesAsync();
-                        Console.WriteLine("finished uploading sending 200");
-                        return Ok();
+                        var student = await _getStudentService.GetStudentByIdAsync(homework.studentId);
+                        return Ok(student);
                     }
                     else
                     {
@@ -178,8 +187,8 @@ public class UploadController  : ControllerBase
                         homework.submissionDate = DateTime.UtcNow;
                         _dbContext.Update(homework);
                         await _dbContext.SaveChangesAsync();
-                        Console.WriteLine("finished uploading sending 200");
-                        return Ok();
+                        var student = await _getStudentService.GetStudentByIdAsync(homework.studentId);
+                        return Ok(student);
                     }
                 }
             }
@@ -241,7 +250,7 @@ public class UploadController  : ControllerBase
 
                 if (homework != null)
                 {
-                    if (IsAiHomeworkFeedbackEnabled()) // Check if AiHomeworkFeedback is enabled
+                    if (IsAiHomeworkFeedbackEnabled()) 
                     {
                         var doc2txt = new TxtExtractor(_httpClient, _configuration) ;
                         var text = await doc2txt.AnalyseDocument(fileUrl);
@@ -252,7 +261,6 @@ public class UploadController  : ControllerBase
                         
                         var aiTeacher = new Assistant(_httpClient, _configuration);
                         var aiFeedback = await aiTeacher.HomeworkFeedbackAgent(HomeworkInput);
-                        Console.WriteLine("feedback is: " + aiFeedback);
 
                         homework.isSubmitted = true;
                         homework.submissionContentType = SubmissionContentType.Image;
@@ -262,8 +270,8 @@ public class UploadController  : ControllerBase
                         homework.submissionDate = DateTime.UtcNow;
                         _dbContext.Update(homework);
                         await _dbContext.SaveChangesAsync();
-                        Console.WriteLine("finished uploading sending 200");
-                        return Ok();
+                        var student = await _getStudentService.GetStudentByIdAsync(homework.studentId);
+                        return Ok(student);
                     }
                     else
                     {
@@ -274,8 +282,8 @@ public class UploadController  : ControllerBase
                         homework.submissionDate = DateTime.UtcNow;
                         _dbContext.Update(homework);
                         await _dbContext.SaveChangesAsync();
-                        Console.WriteLine("finished uploading sending 200");
-                        return Ok();
+                        var student = await _getStudentService.GetStudentByIdAsync(homework.studentId);
+                        return Ok(student);
                     }
                 }
             }
@@ -304,14 +312,13 @@ public class UploadController  : ControllerBase
             {
                 var homework = await _dbContext.homework_assignments.FindAsync(homeworkUploadData.id);
 
-                if (IsAiHomeworkFeedbackEnabled()) // Check if AiHomeworkFeedback is enabled
+                if (IsAiHomeworkFeedbackEnabled())
                 {
                     var aiTeacher = new Assistant(_httpClient, _configuration);
                     
                     var stream = homework.stream.ToString();
                     var HomeworkInput = new HomeworkFeedbackInput { instructions = homework.description, submission = homeworkUploadData.text, stream = stream };
                     var aiFeedback = await aiTeacher.HomeworkFeedbackAgent(HomeworkInput);
-                    Console.WriteLine("feedback is: " + aiFeedback);
 
                     homework.isSubmitted = true;
                     homework.submissionContentType = SubmissionContentType.Text;
@@ -322,8 +329,8 @@ public class UploadController  : ControllerBase
 
                     _dbContext.Update(homework);
                     await _dbContext.SaveChangesAsync();
-                    Console.WriteLine("finished uploading sending 200");
-                    return Ok();
+                    var student = await _getStudentService.GetStudentByIdAsync(homework.studentId);
+                    return Ok(student);
                 }
                 else
                 {
@@ -335,8 +342,8 @@ public class UploadController  : ControllerBase
 
                     _dbContext.Update(homework);
                     await _dbContext.SaveChangesAsync();
-                    Console.WriteLine("finished uploading sending 200");
-                    return Ok();
+                    var student = await _getStudentService.GetStudentByIdAsync(homework.studentId);
+                    return Ok(student);
                 }
             }
         }

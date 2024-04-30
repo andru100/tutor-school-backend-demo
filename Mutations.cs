@@ -16,6 +16,7 @@ using System.Text.Encodings.Web;
 using System.Text;
 using Microsoft.AspNetCore.WebUtilities;
 using Newtonsoft.Json;
+using GetStudent;
 
 namespace AccountController;
 
@@ -30,11 +31,12 @@ public class MutationController : ControllerBase
         private readonly IHttpContextAccessor _httpContextAccessor;
         private readonly IConfiguration _configuration;
         private readonly ApplicationDbContext _dbcontext;
+        private readonly GetStudentService _getStudentService;
 
         // Validate the email address 
         private static readonly EmailAddressAttribute _emailAddressAttribute = new();
 
-        public MutationController(UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager, RoleManager<IdentityRole> roleManager, IEmailSender<ApplicationUser> emailSender, IHttpContextAccessor httpContextAccessor, IConfiguration configuration, ApplicationDbContext dbcontext )
+        public MutationController(UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager, RoleManager<IdentityRole> roleManager, IEmailSender<ApplicationUser> emailSender, IHttpContextAccessor httpContextAccessor, IConfiguration configuration, ApplicationDbContext dbcontext, GetStudentService getStudentService )
         {
             _userManager = userManager;
             _signInManager = signInManager;
@@ -43,6 +45,7 @@ public class MutationController : ControllerBase
             _httpContextAccessor = httpContextAccessor;
             _configuration = configuration;
             _dbcontext = dbcontext;
+            _getStudentService = getStudentService;
     
         }
 
@@ -362,16 +365,12 @@ public class MutationController : ControllerBase
     [Authorize(Policy = "Teacher")]
     public async Task<IActionResult> AddLessonEvent([FromBody] LessonEvent input)
     {
-        Console.WriteLine("AddLessonEvent method called.");
-        Console.WriteLine($"User principle: {User?.Identity?.Name ?? "null"}");
-
         using (var transaction = _dbcontext.Database.BeginTransaction())
         {
             try
             {
                 input.dueDate = DateTime.SpecifyKind(input.dueDate, DateTimeKind.Utc);
                 var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-                Console.WriteLine($"User ID: {userId ?? "null"}");
 
                 input.teacherId = userId;
                 _dbcontext.lesson_events.Add(input);
@@ -382,8 +381,6 @@ public class MutationController : ControllerBase
                     transaction.Rollback();
                     return BadRequest("Lesson ID cannot be null");
                 }
-
-                Console.WriteLine($"Lesson ID: {lessonId}");
 
                 var CalendarEvent = new CalendarEvent
                 {
@@ -399,20 +396,9 @@ public class MutationController : ControllerBase
                 _dbcontext.calendar_events.Add(CalendarEvent);
                 await _dbcontext.SaveChangesAsync();
 
-                Console.WriteLine("Before committing transaction.");
-                Console.WriteLine($"User principle: {User?.Identity?.Name ?? "null"}");
-
                 transaction.Commit();
 
-                Console.WriteLine("After committing transaction.");
-                Console.WriteLine($"User principle: {User?.Identity?.Name ?? "null"}");
-
-                //var queryInstance = new QueryController(_userManager, _signInManager, _dbcontext);
-                var foundStudent = await GetStudentInternal(input.studentId);
-
-                Console.WriteLine("Before returning response.");
-                Console.WriteLine($"User principle: {User?.Identity?.Name ?? "null"}");
-
+                var foundStudent = await _getStudentService.GetStudentByIdAsync(input.studentId);
                 return Ok(foundStudent);
             }
             catch (Exception ex)
@@ -456,8 +442,8 @@ public class MutationController : ControllerBase
 
                 transaction.Commit();
 
-                ////var queryInstance =  new QueryController(_userManager, _signInManager, _dbcontext);
-                var updated = await GetStudentInternal(input.studentId);
+                
+                var updated = await _getStudentService.GetStudentByIdAsync(input.studentId);
                 return Ok(updated);
             }
             catch (Exception ex)
@@ -507,8 +493,8 @@ public class MutationController : ControllerBase
 
                 transaction.Commit();
 
-                //var queryInstance =  new QueryController(_userManager, _signInManager, _dbcontext);
-                var updated = await GetStudentInternal(input.studentId);
+                
+                var updated = await _getStudentService.GetStudentByIdAsync(input.studentId);
                 return Ok(updated);
             }
             catch (Exception ex)
@@ -558,8 +544,8 @@ public class MutationController : ControllerBase
 
                 transaction.Commit();
 
-                //var queryInstance =  new QueryController(_userManager, _signInManager, _dbcontext);
-                var updated = await GetStudentInternal(input.studentId);
+                
+                var updated = await _getStudentService.GetStudentByIdAsync(input.studentId);
                 return Ok(updated);
             }
             catch (Exception ex)
@@ -646,8 +632,8 @@ public class MutationController : ControllerBase
 
                 transaction.Commit();
 
-                //var queryInstance =  new QueryController(_userManager, _signInManager, _dbcontext);
-                var updated = await GetStudentInternal(input.studentId);
+                
+                var updated = await _getStudentService.GetStudentByIdAsync(input.studentId);
                 return Ok(updated);
             }
             catch (Exception ex)
@@ -712,13 +698,13 @@ public class MutationController : ControllerBase
                 }
                 else
                 {
-                    Console.WriteLine("CalendarEvent not found");
+                    throw new Exception("Error occurred during generation");
                 }
 
                 transaction.Commit();
 
-                //var queryInstance =  new QueryController(_userManager, _signInManager, _dbcontext);
-                var updated = await GetStudentInternal(input.studentId);
+                
+                var updated = await _getStudentService.GetStudentByIdAsync(input.studentId);
                 return Ok(updated);
             }
             catch (Exception ex)
@@ -752,7 +738,7 @@ public class MutationController : ControllerBase
             _dbcontext.student_assessment_assignment.Update(gradedAssignment);
             _dbcontext.SaveChanges();
 
-            var updatedStudent = await GetStudentInternal(input.studentId);
+            var updatedStudent = await _getStudentService.GetStudentByIdAsync(input.studentId);
 
             return Ok(new { gradedAssignment, updatedStudent });
         }
@@ -983,27 +969,21 @@ public class MutationController : ControllerBase
             }
             await _dbcontext.SaveChangesAsync(); 
 
-            // Assign the assessment to a student using StudentAssessmentAssignment
-            var student = _dbcontext.students.FirstOrDefault();
-
-            if (student != null)
+            var studentAssessmentAssignment = new StudentAssessmentAssignment
             {
-                var studentAssessmentAssignment = new StudentAssessmentAssignment
-                {
-                    title = assessment.title.ToLower(),
-                    studentId = request.studentId,
-                    teacherId = request.teacherId,
-                    assessmentId = assessmentId,
-                    isAssigned = true,
-                    isSubmitted = false,
-                    isGraded = false,
-                    dueDate = new DateTime(2023, new Random().Next(1, 13), new Random().Next(1, 29), 0, 0, 0, DateTimeKind.Utc),
-                    score = null
-                };
+                title = assessment.title.ToLower(),
+                studentId = request.studentId,
+                teacherId = request.teacherId,
+                assessmentId = assessmentId,
+                isAssigned = true,
+                isSubmitted = false,
+                isGraded = false,
+                dueDate = new DateTime(2023, new Random().Next(1, 13), new Random().Next(1, 29), 0, 0, 0, DateTimeKind.Utc),
+                score = null
+            };
 
-                _dbcontext.student_assessment_assignment.Add(studentAssessmentAssignment);
-                await _dbcontext.SaveChangesAsync(); 
-            }
+            _dbcontext.student_assessment_assignment.Add(studentAssessmentAssignment);
+            await _dbcontext.SaveChangesAsync(); 
 
             return Ok();
 
@@ -1016,40 +996,6 @@ public class MutationController : ControllerBase
                 Console.WriteLine($"Inner Exception: {ex.InnerException.Message}");
             }
             return StatusCode(StatusCodes.Status500InternalServerError, new { message = "An error occurred while creating the assessment" });
-        }
-    }
-
-    
-    private async Task<Student> GetStudentInternal(string studentId)
-    {
-        try
-        {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-
-            var foundStudent = await _dbcontext.students
-                .Include(s => s.lessonEvents)
-                .Include(s => s.calendarEvents)
-                .Include(s => s.homeworkAssignments)
-                .Include(s => s.assessments)
-                .FirstOrDefaultAsync(s => s.studentId == studentId);
-
-            if (foundStudent == null)
-            {
-                Console.WriteLine($"Student with ID {studentId} not found.");
-                throw new Exception("Student not found");
-            }
-
-            return foundStudent;
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"An error occurred: {ex.Message}");
-            if (ex.InnerException != null)
-            {
-                Console.WriteLine($"Inner Exception: {ex.InnerException.Message}");
-            }
-
-            throw; // Re-throw, propagate up the call stack
         }
     }
  

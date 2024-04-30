@@ -24,16 +24,12 @@ namespace AccountController
     {
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly SignInManager<ApplicationUser> _signInManager;
-        //private readonly RoleManager<IdentityRole> _roleManager ;
-        //private readonly IHttpContextAccessor _httpContextAccessor;
         private readonly ApplicationDbContext _dbcontext;
 
         public QueryController(UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager, ApplicationDbContext dbcontext)
         {
             _userManager = userManager;
             _signInManager = signInManager;
-           // _roleManager = roleManager;
-           // _httpContextAccessor = httpContextAccessor;
            _dbcontext = dbcontext;
     
         }
@@ -98,7 +94,7 @@ namespace AccountController
                 }
                 else
                 {
-                    Console.WriteLine($"Student with ID {userId} not found.");
+                    Console.WriteLine($"User with ID {userId} not found.");
                     return StatusCode(500, "An error occurred while updating, the incident has been logged");
                 }
             }
@@ -414,8 +410,6 @@ namespace AccountController
 
                 if (foundTeacher != null)
                 {   
-
-                    Console.WriteLine("returned teacher data");
                     return Ok(foundTeacher);
                 }
                 else
@@ -457,7 +451,7 @@ namespace AccountController
                 }
                 else
                 {
-                    Console.WriteLine($"Student with ID {userId} has correct student policy but no student record. Should be impossible. Was there an error in sign up stage 2");
+                    Console.WriteLine($"Student with ID {userId} has correct student policy but no student record. Should be impossible. Was there an error in sign up stage 2?");
                     return NotFound("Student has no student record");
                 }
             }
@@ -514,13 +508,12 @@ namespace AccountController
 
                 if (assessment != null)
                 {
-                    Console.WriteLine($"Found Assessment with ID {assessmentId}:");
                     return Ok(assessment);
                 }
                 else
                 {
                     Console.WriteLine($"Assessment with ID {assessmentId} not found.");
-                    return StatusCode(500, "An error occurred while updating, the incident has been logged");
+                    return StatusCode(404, "Assessment with ID {assessmentId} not found.");
                 }
 
             }catch (Exception ex)
@@ -545,13 +538,12 @@ namespace AccountController
 
                 if (foundAssessmentAssignment != null)
                 {
-                    Console.WriteLine($"Found StudentAssessmentAssignment with ID {assignmentId}:");
                     return Ok(foundAssessmentAssignment);
                 }
                 else
                 {
                     Console.WriteLine($"StudentAssessmentAssignment with ID {assignmentId} not found.");
-                    return StatusCode(500, "An error occurred while updating, the incident has been logged");
+                    return StatusCode(404, $"StudentAssessmentAssignment with ID {assignmentId} not found.");
                 }
             }
             catch (Exception ex)

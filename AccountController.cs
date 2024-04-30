@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Model;
@@ -139,8 +140,7 @@ namespace AccountController
                     return Problem("Invalid Google auth token");
                 }
 
-                Console.WriteLine("have payload after google auth , email is \n" + payload.Email);
-                var Password = "1q1q1q1Q!!";
+                var Password = "Password123!";
 
                 var userManager = sp.GetRequiredService<UserManager<ApplicationUser>>();
 
@@ -196,8 +196,6 @@ namespace AccountController
         {
             try
             {
-                Console.WriteLine("Login endpoint called.");
-
                 var signInManager = sp.GetRequiredService<SignInManager<ApplicationUser>>();
 
                 var useCookieScheme = (useCookies == true) || (useSessionCookies == true);
@@ -224,7 +222,6 @@ namespace AccountController
                 }
 
                 // The signInManager should have returned the token when PasswordSignInAsync was called.
-                // Return an empty result to avoid the "response has already started" issue.
                 return new EmptyResult();
             }
             catch (Exception ex)
@@ -288,7 +285,6 @@ namespace AccountController
                     await signInManager.SignInAsync(user, isPersistent: false);
 
                     // The signInManager should have returned the token when PasswordSignInAsync was called.
-                    // Return an empty result to avoid the "response has already started" issue.
                     return new EmptyResult();
                 }
                 else
@@ -333,16 +329,12 @@ namespace AccountController
                         var confirmResult = await userManager.ConfirmEmailAsync(user, code);
                         if (!confirmResult.Succeeded)
                         {
-                            // Handle the failure case, maybe log the errors or return a specific action result
-                            Console.WriteLine("\n\n\nEmail confirmation failed.\n");
                             foreach (var error in confirmResult.Errors)
                             {
                                 Console.WriteLine($"Error: {error.Description}");
                             }
-                            return BadRequest(confirmResult.Errors); // Or another appropriate action result
+                            return BadRequest(confirmResult.Errors);
                         }
-
-                        Console.WriteLine("\n\n\nEmail confirmed, sending token.\n");
 
                         var signInManager = sp.GetRequiredService<SignInManager<ApplicationUser>>();
 
@@ -379,7 +371,6 @@ namespace AccountController
         [HttpPost("resendConfirmationEmail")]
         public async Task<IActionResult> ResendConfirmationEmail([FromBody] ResendRequest resendRequest, [FromServices] IServiceProvider sp)
         {
-            Console.WriteLine("resendConfirmationEmail called");
             var userManager = sp.GetRequiredService<UserManager<ApplicationUser>>();
             if (await userManager.FindByEmailAsync(resendRequest.email) is not { } user)
             {
@@ -395,7 +386,6 @@ namespace AccountController
         {
             try
             {
-                Console.WriteLine("Forgot password has been called \n\n");
                 var userManager = sp.GetRequiredService<UserManager<ApplicationUser>>();
                 var user = await userManager.FindByEmailAsync(resetRequest.email);
 
@@ -431,14 +421,13 @@ namespace AccountController
         [HttpPost("resetPassword")]
         public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest resetRequest, [FromQuery] bool? useCookies, [FromQuery] bool? useSessionCookies, [FromServices] IServiceProvider sp)
         {
-            Console.Write($"reset password called: request is:  \n\n\n{resetRequest.Email} and {resetRequest.ResetCode}");
             var userManager = sp.GetRequiredService<UserManager<ApplicationUser>>();
 
             var user = await userManager.FindByEmailAsync(resetRequest.Email);
 
             if (user is null || !(await userManager.IsEmailConfirmedAsync(user)))
             {
-                Console.Write($"\n\nUser not found\n\n");
+                Console.Write($"User not found");
                 // Don't reveal that the user does not exist or is not confirmed, so don't return a 200 if we would have
                 // returned a 400 for an invalid code given a valid user email.
                 return BadRequest(IdentityResult.Failed(userManager.ErrorDescriber.InvalidToken()));
@@ -455,7 +444,7 @@ namespace AccountController
                     return BadRequest(result);
                 }
 
-                Console.WriteLine("\n\n Reset password request completed");
+                Console.WriteLine("Reset password request completed");
                 return Ok();
             }
             catch (FormatException)
@@ -464,8 +453,6 @@ namespace AccountController
 
                 return BadRequest(IdentityResult.Failed(userManager.ErrorDescriber.InvalidToken()));
             }
-
-            Console.WriteLine("\n\n\n got right to the end!");
             return Ok();
         }
 
@@ -547,7 +534,7 @@ namespace AccountController
 
         
         [HttpGet("info")]
-        [Authorize(Policy = "Teacher, Student")]
+        [Authorize(Policy = "Student")]
         public async Task<IActionResult> GetUserInfo([FromServices] IServiceProvider sp)
         {
             var userManager = sp.GetRequiredService<UserManager<ApplicationUser>>();
@@ -563,7 +550,7 @@ namespace AccountController
         }
 
         [HttpPost("info")]
-        [Authorize(Policy = "Teacher, Student")]
+        [Authorize(Policy = "Student")]
         public async Task<IActionResult> UpdateUserInfo([FromBody] InfoRequest infoRequest, [FromServices] IServiceProvider sp)
         {
             var userManager = sp.GetRequiredService<UserManager<ApplicationUser>>();
@@ -652,7 +639,7 @@ namespace AccountController
                 await _dbcontext.SaveChangesAsync();
                 await transaction.CommitAsync();
 
-                Console.WriteLine("\n\n stage2 user and role created, about to signin send token \n\n");
+                Console.WriteLine("stage two sign up, user and role created, about to signin send token.");
 
                 var signInManager = sp.GetRequiredService<SignInManager<ApplicationUser>>();
 
@@ -662,10 +649,7 @@ namespace AccountController
 
                 await signInManager.SignInAsync(user, isPersistent: false);
 
-                 // The signInManager already produced the cookie or token.
                 return new EmptyResult();
-
-                //return Ok(new { message = "User created successfully", user.Id });
             }
             catch (Exception ex)
             {
@@ -687,7 +671,7 @@ namespace AccountController
 
 
         [HttpPost("signupstudent")]
-        public async Task<IActionResult> SignUpStudent([FromBody] AdminCreateStudentData model,  [FromQuery] bool? useCookies, [FromQuery] bool? useSessionCookies, [FromServices] IServiceProvider sp)
+        public async Task<IActionResult> SignUpStudent([FromBody] AdminCreateStudentData model, [FromQuery] bool? useCookies, [FromQuery] bool? useSessionCookies, [FromServices] IServiceProvider sp)
         {
             using var transaction = await _dbcontext.Database.BeginTransactionAsync();
 
@@ -704,8 +688,6 @@ namespace AccountController
                 user.Name = model.name;
                 user.Dob = model.dob.HasValue ? model.dob.Value.ToUniversalTime() : (DateTime?)null;
                 user.PhoneNumber = model.PhoneNumber;
-                //user.SortCode = model.sortCode;
-                //user.AccountNo = model.accountNo;
                 user.Stream = model.stream;
                 user.Notes = model.notes;
                 user.ParentName = model.parentName;
@@ -717,21 +699,26 @@ namespace AccountController
                     return BadRequest("Unable to update user");
                 }
 
-                var student = new Student { studentId = user.Id, teacherId = model.teacherId, name = user.Name, notes = user.Notes, stream = user.Stream };
+                // Find the first teacher in the database
+                var firstTeacher = await _dbcontext.teachers.FirstOrDefaultAsync();
+                if (firstTeacher == null)
+                {
+                    return BadRequest("No teachers found in the database");
+                }
+
+                var student = new Student { studentId = user.Id, teacherId = firstTeacher.teacherId, name = user.Name, notes = user.Notes, stream = user.Stream };
                 _dbcontext.students.Add(student);
 
-                
                 var addRoleResult = await _userManager.AddToRoleAsync(user, "Student");
                 if (!addRoleResult.Succeeded)
                 {
                     throw new Exception("Failed to add user to role.");
                 }
 
-                
                 await _dbcontext.SaveChangesAsync();
                 await transaction.CommitAsync();
 
-                var didAssign = await AssignAssessmentInternal(userId, model.teacherId, 1);
+                var didAssign = await AssignAssessmentInternal(userId, firstTeacher.teacherId, 1);
                 if (didAssign)
                 {
                     Console.WriteLine("Assessment assigned successfully");
@@ -740,7 +727,7 @@ namespace AccountController
                 {
                     Console.WriteLine("Unable to assign initial assessment");
                 }
-                Console.WriteLine("\n\n stage2 user and role created, about to signin send token \n\n");
+                Console.WriteLine("stage two sign up, user and role created, about to signin send token");
 
                 var signInManager = sp.GetRequiredService<SignInManager<ApplicationUser>>();
 
@@ -750,13 +737,8 @@ namespace AccountController
 
                 await signInManager.SignInAsync(user, isPersistent: false);
 
-                Console.WriteLine("New student record created successfully!");
-
-                 // The signInManager already produced the cookie or token.
+                // The signInManager already produced the cookie or token.
                 return new EmptyResult();
-
-                
-                //return Ok(new { message = "User created successfully", user.Id });
             }
             catch (Exception ex)
             {
@@ -795,8 +777,6 @@ namespace AccountController
             {
                 //ArgumentNullException.ThrowIfNull(endpoints);
 
-                Console.WriteLine("ConfirmationEmailAsync has been called");
-
                 var timeProvider = context.RequestServices.GetRequiredService<TimeProvider>();
                 var bearerTokenOptions = context.RequestServices.GetRequiredService<IOptionsMonitor<BearerTokenOptions>>();
                 var emailSender = context.RequestServices.GetRequiredService<IEmailSender<ApplicationUser>>();
@@ -813,11 +793,10 @@ namespace AccountController
                 code = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(code));
 
                 
-                Console.WriteLine($"\n\ncode is: {code}");
+                Console.WriteLine($"\n\n email confirmation code is: {code}");
 
                 var userId = await _userManager.GetUserIdAsync(user);
 
-                Console.WriteLine($"userid found is :{userId}");
                 var routeValues = new RouteValueDictionary()
                 {
                     ["userId"] = userId,
@@ -830,12 +809,11 @@ namespace AccountController
                     routeValues.Add("changedEmail", email);
                 }
 
-            
-                var confirmEmailUrl = linkGenerator.GetUriByName(context, confirmEmailEndpointName, routeValues);
-                Console.WriteLine($"confirmemailurl is: {confirmEmailUrl}");
-                 
+                var confirmEmailUrl = linkGenerator.GetUriByName(context, confirmEmailEndpointName, routeValues)
+                ?? throw new NotSupportedException($"Could not find endpoint named '{confirmEmailEndpointName}'.");
+                
                 var urlnew = HtmlEncoder.Default.Encode(confirmEmailUrl);
-                Console.WriteLine("encoded confirm email url is: \n\n"  + urlnew);
+                Console.WriteLine("\n\n email confirmation link is: \n\n"  + urlnew);
 
                  await emailSender.SendConfirmationLinkAsync(user, email, urlnew);
             }

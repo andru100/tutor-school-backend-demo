@@ -21,16 +21,11 @@ public class AssessmentGrader
             assignment.isGraded = true;
             assignment.gradedDate = DateTime.UtcNow;
 
-            // Log a specific topic score before returning
-            Console.WriteLine("Topic score before returning:");
-            Console.WriteLine($"Math Addition Score: {assignment.topicScores.math.addition.score}");
-
 
             return assignment;
         }
         catch (Exception ex)
         {
-            // Handle the exception here or rethrow if needed
             Console.WriteLine("An error occurred: " + ex.Message);
             throw;
         }
@@ -81,8 +76,6 @@ public class AssessmentGrader
 
             if (answer != null && correctAnswerIds.Contains(answer.answerId))
             {
-                Console.WriteLine("Exam subject/ stream: " +  assessment.stream);
-                Console.WriteLine("Question topic: " + question.topic);
                 AddScore(question.topic, assessment.stream, topicScores);
             }
 
@@ -90,12 +83,6 @@ public class AssessmentGrader
         }
         
         CalculateScoresForSubjectsAndTopics(topicScores);
-
-        Console.WriteLine("Topic score before returning to mother grader:");
-        Console.WriteLine($"Math Addition Score: {topicScores.math.addition.score}");
-        Console.WriteLine($"Math Multi Score: {topicScores.math.multiplication.score}");
-
-        
 
         return topicScores;
     }
@@ -129,8 +116,8 @@ public class AssessmentGrader
 
     private void CountQuestionsInTopic(Assessment assessment, TopicScores topicScores)
     {
-        //TODO decide wether to make this modula and able to handle new subjects added or just count them when assessment made
-        // a new suvject will allways need to be added to TopicScores so maybe better to just add here to
+        //TODO decide wether to make this modular and able to handle new subjects added or just count them when assessment made
+        // a new subject will allways need to be added to TopicScores so maybe better to just add here to
         // Count English topics
         topicScores.english.grammar_and_punctuation.total = assessment.questionsWithAnswers.Count(q => q.topic == "grammar_and_punctuation");
         topicScores.english.reading_and_comprehension.total = assessment.questionsWithAnswers.Count(q => q.topic == "reading_and_comprehension");
@@ -155,9 +142,6 @@ public class AssessmentGrader
         topicScores.math.number_and_place_value.total = assessment.questionsWithAnswers.Count(q => q.topic == "number_and_place_value");
         topicScores.math.measurement.total = assessment.questionsWithAnswers.Count(q => q.topic == "measurement");
         topicScores.math.statistics.total = assessment.questionsWithAnswers.Count(q => q.topic == "statistics");
-
-        // Generate report logic here
-        Console.WriteLine("Method ran successfully.");
     
     }
 
@@ -188,14 +172,8 @@ public class AssessmentGrader
                         var scoreProperty = typeof(Score).GetProperty("correct");
                         if (scoreProperty != null)
                         {
-                            Console.WriteLine("scoreProperty Updating topic correct count");
                             double currentScore = (double)scoreProperty.GetValue(scoreValue);
-
-                            Console.WriteLine($"Current count: {currentScore}");
-                            // Update the score (e.g., increment by 1)
                             scoreProperty.SetValue(scoreValue, currentScore + 1);
-
-                            Console.WriteLine($"New count set successfully: {scoreValue.score}");
                         }
                         else
                         {

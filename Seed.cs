@@ -170,7 +170,6 @@ namespace seed
             try{
                 if (teacherId == null)
                 {
-                    Console.WriteLine("teacherId is null");
                     throw new Exception($"teacherId is null");
                 }
 

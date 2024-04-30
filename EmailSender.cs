@@ -52,16 +52,16 @@ public class AWSEmailSender : IEmailSender<ApplicationUser>
 
        public async Task SendConfirmationLinkAsync(ApplicationUser user, string link, string callbackUrl)
     {
-        Console.WriteLine("SendConfirmationLinkAsync triggered \n\n reset link is " + link );
+        Console.WriteLine("Unimplemented SendConfirmationLinkAsync triggered \n\n reset link is " + link );
     }
 
     public async Task SendPasswordResetLinkAsync(ApplicationUser user, string link, string callbackUrl)
     {
-        Console.WriteLine("SendPasswordResetLinkAsync triggered \n\n reset link is " + link );
+        Console.WriteLine("Unimplemented SendPasswordResetLinkAsync triggered \n\n reset link is " + link );
     }
 
     public async Task SendPasswordResetCodeAsync(ApplicationUser user, string code, string callbackUrl)
     {
-        Console.WriteLine("sendPasswordReset triggered \n\n reset code is " + code);
+        Console.WriteLine("Unimplemented sendPasswordReset triggered \n\n reset code is " + code);
     }
 }

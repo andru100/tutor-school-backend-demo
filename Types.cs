@@ -3,20 +3,11 @@ using System.Text.Json.Serialization;
 
 namespace Model;
 
-// public class LoginData
-// {
-//     public string email { get; set; }
-//    // public string username { get; set; }
-//     public string password { get; set; }
-//     public bool   rememberMe { get; set; }
-// }
 
 public class ResendRequest
 {
     public string email { get; set; }
 }
-
-
 
 public class SignUpData {
     public string Email {get; set;}
@@ -97,7 +88,7 @@ public class Teacher
     public ICollection<LessonEvent>? lessonEvents { get; set; }
     public List<CalendarEvent>? calendarEvents { get; set; }
     public ICollection<HomeworkAssignment>? homeworkAssignments { get; set; }
-    public ICollection<StudentAssessmentAssignment>? assessments { get; set; } // 
+    public ICollection<StudentAssessmentAssignment>? assessments { get; set; } 
 
     
 }
@@ -120,7 +111,7 @@ public class Student
     public ICollection<LessonEvent>? lessonEvents { get; set; }
     public ICollection<CalendarEvent>? calendarEvents { get; set; }
     public ICollection<HomeworkAssignment>? homeworkAssignments { get; set; }
-    public ICollection<StudentAssessmentAssignment>? assessments { get; set; } // 
+    public ICollection<StudentAssessmentAssignment>? assessments { get; set; } 
     
 }
 

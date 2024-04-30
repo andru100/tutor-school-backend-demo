@@ -23,7 +23,6 @@ public class TxtExtractor
             formData.Add(new StringContent(fileUrl), "image_url");
             var response = await _httpClient.PostAsync(url, formData);
             var responseBody = await response.Content.ReadAsStringAsync();
-            Console.WriteLine("Response from server: " + responseBody);
             return responseBody;
         }
         catch (Exception ex)
@@ -43,7 +42,6 @@ public class TxtExtractor
             formData.Add(new StringContent(documentUrl), "document_url");
             var response = await _httpClient.PostAsync(url, formData);
             var responseBody = await response.Content.ReadAsStringAsync();
-            Console.WriteLine("Response from server: " + responseBody);
             return responseBody;
         }
         catch (Exception ex)
