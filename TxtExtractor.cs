@@ -14,7 +14,7 @@ public class TxtExtractor
     }
 
     public async Task<string> AnalyseImage(string fileUrl)
-    {
+    { 
         try
         {
             var analyseImageBackend = _configuration["ANALYSE_IMAGE_BACKEND"];
@@ -22,13 +22,19 @@ public class TxtExtractor
             var formData = new MultipartFormDataContent();
             formData.Add(new StringContent(fileUrl), "image_url");
             var response = await _httpClient.PostAsync(url, formData);
+            
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new Exception("error contacting txt extractor");
+            }
+
             var responseBody = await response.Content.ReadAsStringAsync();
             return responseBody;
         }
         catch (Exception ex)
         {
             Console.WriteLine("An error occurred: " + ex.Message);
-            throw; 
+            throw;
         }
     }
 
@@ -41,15 +47,20 @@ public class TxtExtractor
             var formData = new MultipartFormDataContent();
             formData.Add(new StringContent(documentUrl), "document_url");
             var response = await _httpClient.PostAsync(url, formData);
+            
+            if (!response.IsSuccessStatusCode)
+            {
+                return "error contacting txt extractor";
+            }
+
             var responseBody = await response.Content.ReadAsStringAsync();
             return responseBody;
         }
         catch (Exception ex)
         {
             Console.WriteLine("An error occurred: " + ex.Message);
-            throw; 
+            return "error contacting txt extractor";
         }
     }
 }
-
 

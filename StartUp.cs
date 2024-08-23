@@ -65,9 +65,11 @@ namespace Main
             
             string connectionString = $"Host={Environment.GetEnvironmentVariable("DB_HOST")};Port={Environment.GetEnvironmentVariable("DB_PORT")};Username={Environment.GetEnvironmentVariable("DB_USERNAME")};Password={Environment.GetEnvironmentVariable("DB_PASSWORD")};Database={Environment.GetEnvironmentVariable("DB_NAME")};IncludeErrorDetail=true;";
             Console.WriteLine("connection string is: " + connectionString);
+             
             services.AddDbContext<ApplicationDbContext>(options =>
                 options.UseNpgsql(connectionString)
             );
+
 
             services.AddHttpContextAccessor();
             services.AddSingleton<IConfiguration>(Configuration);

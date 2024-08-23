@@ -7,7 +7,7 @@ namespace Grades;
 
 public class AssessmentGrader
 {
-    public StudentAssessmentAssignment GradeAssessment(StudentAssessmentAssignment assignment, Assessment assessment)
+    public StudentAssessment GradeAssessment(StudentAssessment assignment, Assessment assessment)
     {
         try
         {
@@ -31,7 +31,7 @@ public class AssessmentGrader
         }
     }
 
-    private double CalculateOverallScore(StudentAssessmentAssignment assignment, Assessment assessment)
+    private double CalculateOverallScore(StudentAssessment assignment, Assessment assessment)
     {
         try
         {
@@ -60,7 +60,7 @@ public class AssessmentGrader
         }
     }
 
-    private TopicScores CalculateTopicScores(StudentAssessmentAssignment assignment, Assessment assessment)
+    private TopicScores CalculateTopicScores(StudentAssessment assignment, Assessment assessment)
     {
         var topicScores = new TopicScores();
 

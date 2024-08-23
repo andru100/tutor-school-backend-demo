@@ -88,7 +88,7 @@ public class Teacher
     public ICollection<LessonEvent>? lessonEvents { get; set; }
     public List<CalendarEvent>? calendarEvents { get; set; }
     public ICollection<HomeworkAssignment>? homeworkAssignments { get; set; }
-    public ICollection<StudentAssessmentAssignment>? assessments { get; set; } 
+    public ICollection<StudentAssessment>? assessments { get; set; } 
 
     
 }
@@ -111,7 +111,7 @@ public class Student
     public ICollection<LessonEvent>? lessonEvents { get; set; }
     public ICollection<CalendarEvent>? calendarEvents { get; set; }
     public ICollection<HomeworkAssignment>? homeworkAssignments { get; set; }
-    public ICollection<StudentAssessmentAssignment>? assessments { get; set; } 
+    public ICollection<StudentAssessment>? assessments { get; set; } 
     
 }
 
@@ -143,7 +143,7 @@ public class LessonEvent : Event
 
 
 
-public class StudentAssessmentAssignment : Event
+public class StudentAssessment : Event
 {
     public string? teacherId { get; set; }
     public string studentId { get; set; }
@@ -162,7 +162,7 @@ public class StudentAssessmentAssignment : Event
     public Student? student { get; set; }
     public Teacher? teacher { get; set; }
 
-    public StudentAssessmentAssignment()
+    public StudentAssessment()
     {
         answers = new List<ExamAnswer>();
         topicScores = new TopicScores();

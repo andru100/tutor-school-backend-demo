@@ -566,7 +566,7 @@ public class MutationController : ControllerBase
 
     [HttpPost("AssignAssessment")] 
     [Authorize(Policy = "Teacher")]
-    public async Task<IActionResult> AssignAssessment(StudentAssessmentAssignment input)
+    public async Task<IActionResult> AssignAssessment(StudentAssessment input)
     {
         using (var transaction = _dbcontext.Database.BeginTransaction())
         {
@@ -595,7 +595,7 @@ public class MutationController : ControllerBase
                 var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
                 input.teacherId = userId;
 
-                var assignment = new StudentAssessmentAssignment
+                var assignment = new StudentAssessment
                 {
                     studentId = input.studentId,
                     teacherId = userId,
@@ -607,7 +607,7 @@ public class MutationController : ControllerBase
                     title = title
                 };
 
-                _dbcontext.student_assessment_assignment.Add(assignment);
+                _dbcontext.student_assessment.Add(assignment);
                 await _dbcontext.SaveChangesAsync();
 
                 var assignmentId = assignment.id ?? 0; 
@@ -654,7 +654,7 @@ public class MutationController : ControllerBase
 
     [HttpPost("UpdateAssignment")] 
     [Authorize(Policy = "Teacher")]
-    public async Task<IActionResult> UpdateAssignment(StudentAssessmentAssignment input)
+    public async Task<IActionResult> UpdateAssignment(StudentAssessment input)
     {
         using (var transaction = _dbcontext.Database.BeginTransaction())
         {
@@ -685,7 +685,7 @@ public class MutationController : ControllerBase
 
                 input.title = stream;
                 
-                _dbcontext.student_assessment_assignment.Update(input);
+                _dbcontext.student_assessment.Update(input);
                 await _dbcontext.SaveChangesAsync();
 
                 var CalendarEvent = _dbcontext.calendar_events.FirstOrDefault(e => e.eventId == input.id);
@@ -725,7 +725,7 @@ public class MutationController : ControllerBase
 
     [HttpPost("SubmitAssessment")] 
     [Authorize(Policy = "Student")]
-    public async Task<IActionResult> SubmitAssessment(StudentAssessmentAssignment input)
+    public async Task<IActionResult> SubmitAssessment(StudentAssessment input)
     {
         try
         {
@@ -735,7 +735,7 @@ public class MutationController : ControllerBase
             var grader = new AssessmentGrader();
             var gradedAssignment = grader.GradeAssessment(input, assessment);
 
-            _dbcontext.student_assessment_assignment.Update(gradedAssignment);
+            _dbcontext.student_assessment.Update(gradedAssignment);
             _dbcontext.SaveChanges();
 
             var updatedStudent = await _getStudentService.GetStudentByIdAsync(input.studentId);
@@ -801,6 +801,7 @@ public class MutationController : ControllerBase
     [Authorize(Policy = "Teacher")]
     public async Task<IActionResult> DeleteHomeworkAssignment(HomeworkDelete input) 
     {
+        Console.WriteLine("\n\nDeleteHomeworkAssignment called");
         using (var transaction = _dbcontext.Database.BeginTransaction())
         {
             try
@@ -876,8 +877,8 @@ public class MutationController : ControllerBase
                     _dbcontext.calendar_events.Remove(calendarEventToDelete);
                     await _dbcontext.SaveChangesAsync();
                 }
-                var assignmentToDelete = _dbcontext.student_assessment_assignment.Find(input.id);
-                _dbcontext.student_assessment_assignment.Remove(assignmentToDelete);
+                var assignmentToDelete = _dbcontext.student_assessment.Find(input.id);
+                _dbcontext.student_assessment.Remove(assignmentToDelete);
                 await _dbcontext.SaveChangesAsync();
 
                 transaction.Commit();
@@ -969,7 +970,7 @@ public class MutationController : ControllerBase
             }
             await _dbcontext.SaveChangesAsync(); 
 
-            var studentAssessmentAssignment = new StudentAssessmentAssignment
+            var studentAssessmentAssignment = new StudentAssessment
             {
                 title = assessment.title.ToLower(),
                 studentId = request.studentId,
@@ -982,7 +983,7 @@ public class MutationController : ControllerBase
                 score = null
             };
 
-            _dbcontext.student_assessment_assignment.Add(studentAssessmentAssignment);
+            _dbcontext.student_assessment.Add(studentAssessmentAssignment);
             await _dbcontext.SaveChangesAsync(); 
 
             return Ok();
@@ -997,6 +998,33 @@ public class MutationController : ControllerBase
             }
             return StatusCode(StatusCodes.Status500InternalServerError, new { message = "An error occurred while creating the assessment" });
         }
+    }
+
+    [HttpDelete("DeleteProfileImage")]
+    [Authorize]
+    public async Task<IActionResult> DeleteProfileImage()
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var userRole = User.FindFirstValue(ClaimTypes.Role);
+
+        dynamic foundUser = null;
+        if (userRole == "Student")
+        {
+            foundUser = await _dbcontext.students.FirstOrDefaultAsync(s => s.studentId == userId);
+        }
+        else if (userRole == "Teacher")
+        {
+            foundUser = await _dbcontext.teachers.FirstOrDefaultAsync(t => t.teacherId == userId);
+        }
+
+        if (foundUser != null)
+        {
+            foundUser.profileImgUrl = null;
+            await _dbcontext.SaveChangesAsync();
+            return Ok("Profile image deleted successfully.");
+        }
+
+        return NotFound("User not found.");
     }
  
 }

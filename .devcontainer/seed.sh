@@ -1,2 +1,0 @@
-curl --silent --fail http://localhost:5000/api/mutation/resetdb --data '{}' --header "Content-Type: application/json"
-curl --silent --fail http://localhost:5000/api/mutation/seed --data '{}' --header "Content-Type: application/json"

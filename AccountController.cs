@@ -128,11 +128,9 @@ namespace AccountController
 
                 var response = await httpClient.SendAsync(request);
                 var responseString = await response.Content.ReadAsStringAsync();
-                Console.WriteLine("responseString is " + responseString + "\n\n");
                 var responseObject = JsonConvert.DeserializeObject<dynamic>(responseString);
 
                 var idToken = responseObject.id_token.ToString();
-                Console.WriteLine("Credential is " + idToken);
                 var payload = await GoogleJsonWebSignature.ValidateAsync(idToken, settings);
 
                 if (payload == null)
@@ -163,11 +161,18 @@ namespace AccountController
                 await emailStore.SetEmailAsync(user, email, CancellationToken.None);
                 var result = await userManager.CreateAsync(user, Password);
 
-                var user2 = await userManager.FindByEmailAsync(email);
+                if (!result.Succeeded)
+                {
+                    return BadRequest(result);
+                }
 
-                result = await emailStore.SetEmailConfirmedAsync(user2, true, CancellationToken.None);
+                var code = await userManager.GenerateEmailConfirmationTokenAsync(user);
+                var confirmResult = await userManager.ConfirmEmailAsync(user, code);
 
-                Console.WriteLine("\n\n registergoogle user created, about to signin send token \n\n");
+                if (!confirmResult.Succeeded)
+                {
+                    return BadRequest(confirmResult.Errors);
+                }
 
                 var signInManager = sp.GetRequiredService<SignInManager<ApplicationUser>>();
 
@@ -177,7 +182,6 @@ namespace AccountController
 
                 await signInManager.SignInAsync(user, isPersistent: false);
 
-                 // The signInManager already produced the cookie or token.
                 return new EmptyResult();
             }
             catch (Exception ex)
@@ -284,6 +288,8 @@ namespace AccountController
 
                     await signInManager.SignInAsync(user, isPersistent: false);
 
+                    Console.WriteLine("\n\n ive supposedly signed in google user\n\n");
+
                     // The signInManager should have returned the token when PasswordSignInAsync was called.
                     return new EmptyResult();
                 }
@@ -304,7 +310,7 @@ namespace AccountController
             var userManager = sp.GetRequiredService<UserManager<ApplicationUser>>();
             if (await userManager.FindByEmailAsync(email) is not { } user)
             {
-                // We could respond with a 404 instead of a 401 like Identity UI, but that feels like unnecessary information.
+                
                 Console.WriteLine("user not found email is : " + email);
                 return Unauthorized();
             }
@@ -313,9 +319,9 @@ namespace AccountController
             {
                 code = Encoding.UTF8.GetString(WebEncoders.Base64UrlDecode(code));
             }
-            catch (FormatException)
+            catch (FormatException ex)
             {
-                Console.WriteLine("Error occurred while decoding the code.");
+                Console.WriteLine($"Error occurred while decoding the code: {ex.Message}"); // Log the detailed error message
                 return Unauthorized();
             }
 
@@ -372,14 +378,24 @@ namespace AccountController
         public async Task<IActionResult> ResendConfirmationEmail([FromBody] ResendRequest resendRequest, [FromServices] IServiceProvider sp)
         {
             var userManager = sp.GetRequiredService<UserManager<ApplicationUser>>();
-            if (await userManager.FindByEmailAsync(resendRequest.email) is not { } user)
+            var user = await userManager.FindByEmailAsync(resendRequest.email);
+            if (user is null)
             {
-                return Ok();
+                return NotFound(new { message = "User not found." }); 
             }
 
-            await ConfirmationEmailAsync(user, HttpContext, resendRequest.email);
-            return Ok();
+            try
+            {
+                var confirmationCode = await ConfirmationEmailAsync(user, HttpContext, resendRequest.email);
+                
+                return Ok(new { message = "Confirmation email sent successfully.", confirmationCode }); 
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "An error occurred while sending the email.", error = ex.Message });
+            }
         }
+
 
         [HttpPost("forgotPassword")]
         public async Task<IActionResult> ForgotPassword([FromBody] ResendRequest resetRequest, [FromServices] IServiceProvider sp)
@@ -391,25 +407,24 @@ namespace AccountController
 
                 if (user is null)
                 {
-                    Console.Write($"\n\nUser not found\n\n");
+                    Console.Write($"User not found\n\n");
                     return Ok();
                 }
 
                 if (!await userManager.IsEmailConfirmedAsync(user))
                 {
-                    Console.Write($"\n\nEmail not confirmed\n\n");
+                    Console.Write($"Email not confirmed\n\n");
                     return Ok();
                 }
 
-                var code = await userManager.GeneratePasswordResetTokenAsync(user);
-                code = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(code));
+                var confirmationCode = await userManager.GeneratePasswordResetTokenAsync(user);
+                confirmationCode = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(confirmationCode));
 
-                Console.WriteLine("\n\n\nPassword reset code created, code: " + code);
-
-                var emailSender = new AWSEmailSender(_configuration);
-                await emailSender.SendPasswordResetCodeAsync(user, HtmlEncoder.Default.Encode(code), "callback-url");
-
-                return Ok();
+                //Send code to email Disabled for live demo, code is sent to frontend  abd displayed in console
+                // var emailSender = new AWSEmailSender(_configuration);
+                // await emailSender.SendPasswordResetCodeAsync(user, HtmlEncoder.Default.Encode(code), "callback-url");
+                Console.WriteLine("Password reset code created, code: " + confirmationCode);
+                return Ok(new { message = "Confirmation email sent successfully.", confirmationCode }); 
             }
             catch (Exception ex)
             {
@@ -770,13 +785,10 @@ namespace AccountController
             return BadRequest("empty obj not recieved");
         }
 
-        
-        public async Task ConfirmationEmailAsync(ApplicationUser user, HttpContext context, string email, bool isChange = false)
+        public async Task<string> ConfirmationEmailAsync(ApplicationUser user, HttpContext context, string email, bool isChange = false)
         {
             try
             {
-                //ArgumentNullException.ThrowIfNull(endpoints);
-
                 var timeProvider = context.RequestServices.GetRequiredService<TimeProvider>();
                 var bearerTokenOptions = context.RequestServices.GetRequiredService<IOptionsMonitor<BearerTokenOptions>>();
                 var emailSender = context.RequestServices.GetRequiredService<IEmailSender<ApplicationUser>>();
@@ -792,7 +804,6 @@ namespace AccountController
                     : await _userManager.GenerateEmailConfirmationTokenAsync(user);
                 code = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(code));
 
-                
                 Console.WriteLine($"\n\n email confirmation code is: {code}");
 
                 var userId = await _userManager.GetUserIdAsync(user);
@@ -805,25 +816,26 @@ namespace AccountController
 
                 if (isChange)
                 {
-                    // This is validated by the /confirmEmail endpoint on change.
                     routeValues.Add("changedEmail", email);
                 }
 
                 var confirmEmailUrl = linkGenerator.GetUriByName(context, confirmEmailEndpointName, routeValues)
                 ?? throw new NotSupportedException($"Could not find endpoint named '{confirmEmailEndpointName}'.");
-                
-                var urlnew = HtmlEncoder.Default.Encode(confirmEmailUrl);
-                Console.WriteLine("\n\n email confirmation link is: \n\n"  + urlnew);
 
-                 await emailSender.SendConfirmationLinkAsync(user, email, urlnew);
+                var urlnew = HtmlEncoder.Default.Encode(confirmEmailUrl);
+                Console.WriteLine("\n\n email confirmation link is: \n\n" + urlnew);
+
+                await emailSender.SendConfirmationLinkAsync(user, email, urlnew);
+
+                return code; // Return the confirmation code
             }
-            catch (Exception ex) 
+            catch (Exception ex)
             {
                 Console.WriteLine($"Error occurred while creating confirmEmailUrl: {ex.Message}");
                 throw;
             }
-           
-        } 
+        }
+
 
 
         private async Task<InfoResponse> CreateInfoResponseAsync(ApplicationUser user)
@@ -865,7 +877,7 @@ namespace AccountController
                      // Set a future date for all assessments
                      DateTime futureDate = DateTime.UtcNow.AddDays(30);
 
-                    var assignment = new StudentAssessmentAssignment
+                    var assignment = new StudentAssessment
                     {
                         studentId = studentId,
                         teacherId = teacherId,
@@ -876,7 +888,7 @@ namespace AccountController
                         dueDate = futureDate
                     };
 
-                    _dbcontext.student_assessment_assignment.Add(assignment);
+                    _dbcontext.student_assessment.Add(assignment);
                     await _dbcontext.SaveChangesAsync();
 
                     var assignmentId = assignment.id ?? 0; 

@@ -157,6 +157,7 @@ namespace AccountController
             try
             {
                 var originalQuestions = await _dbcontext.exam_questions
+                    .AsSplitQuery()
                     .Where(q => q.questionType == QuestionType.Original)
                     .ToListAsync();
 
@@ -260,11 +261,14 @@ namespace AccountController
         [HttpGet("GetTeacher")] 
         [Authorize(Policy = "Teacher")]
         public async Task<IActionResult> GetTeacher([FromServices] IHttpContextAccessor httpContextAccessor) {
+            var startTime = DateTime.UtcNow; // Log start time
+            Console.WriteLine($"GetTeacher called at: {startTime}");
             try
             {
                 var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
                 var foundTeacher = await _dbcontext.teachers
+                    .AsSplitQuery()
                     .Where(t => t.teacherId == userId)
                     .Select(t => new 
                     {
@@ -410,6 +414,8 @@ namespace AccountController
 
                 if (foundTeacher != null)
                 {   
+                    var responseTime = DateTime.UtcNow; // Log response time
+                    Console.WriteLine($"GetTeacher response set at: {responseTime}");
                     return Ok(foundTeacher);
                 }
                 else
@@ -439,6 +445,7 @@ namespace AccountController
             {
                 var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
                 var foundStudent = await _dbcontext.students
+                    .AsSplitQuery()
                     .Include(s => s.lessonEvents)
                     .Include(s => s.calendarEvents)
                     .Include(s => s.homeworkAssignments)
@@ -464,10 +471,7 @@ namespace AccountController
                 }
                 return StatusCode(500, "An error occurred while updating, the incident has been logged");
             }
-        }   
-
- 
-
+        } 
 
         [HttpGet("GetStudents")] 
         [Authorize(Policy = "Teacher")]
@@ -476,7 +480,7 @@ namespace AccountController
             try
             {
                 var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-                var studentsWithTeacherId = _dbcontext.students
+                var studentsWithTeacherId = await _dbcontext.students
                     .Where(student => student.teacherId == userId)
                     .ToListAsync();
                 
@@ -503,6 +507,7 @@ namespace AccountController
             try
             {
                 var assessment = await _dbcontext.assessments
+                .AsSplitQuery()
                 .Include(a => a.questionsWithAnswers)
                 .FirstOrDefaultAsync(a => a.id == assessmentId);
 
@@ -533,7 +538,7 @@ namespace AccountController
         {
             try
             {
-                var foundAssessmentAssignment = await _dbcontext.student_assessment_assignment
+                var foundAssessmentAssignment = await _dbcontext.student_assessment
                     .FirstOrDefaultAsync(saa => saa.id == assignmentId);
 
                 if (foundAssessmentAssignment != null)

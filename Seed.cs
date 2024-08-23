@@ -201,7 +201,7 @@ namespace seed
 
                 if (student != null)
                 {
-                    var studentAssessmentAssignment = new StudentAssessmentAssignment
+                    var studentAssessmentAssignment = new StudentAssessment
                     {
                         title = assessment.title.ToLower(),
                         studentId = studentId,
@@ -215,7 +215,7 @@ namespace seed
                     };
                     
                     Console.WriteLine($"created studentassessmentassignment student id is: \n\n {studentId}");
-                    _dbContext.student_assessment_assignment.Add(studentAssessmentAssignment);
+                    _dbContext.student_assessment.Add(studentAssessmentAssignment);
                     _dbContext.SaveChanges(); 
                 }
             } catch(Exception ex) {
@@ -227,7 +227,7 @@ namespace seed
         public void GenerateSeedData(string teacherId, string studentId)
         {
             try{
-                var seedData = new List<StudentAssessmentAssignment>();
+                var seedData = new List<StudentAssessment>();
 
                 // Define the number of seed assessments to create in appsettings.json
                 int NumberOfAssessments = Convert.ToInt32(_configuration["NUMBER_OF_ASSESSMENTS"]);
@@ -240,7 +240,7 @@ namespace seed
                 {
                     pastDate = pastDate.AddMinutes(random.Next(60, 1440)); // Add random minutes to the past date
 
-                    var assessment = new StudentAssessmentAssignment
+                    var assessment = new StudentAssessment
                     {
                         studentId = studentId,
                         teacherId = teacherId,
@@ -385,7 +385,7 @@ namespace seed
                 // Sort the seedData list by date before adding it to the database
                 seedData.Sort((a, b) => DateTime.Compare(a.submissionDate ?? DateTime.MinValue, b.submissionDate ?? DateTime.MinValue));
 
-                _dbContext.student_assessment_assignment.AddRange(seedData);
+                _dbContext.student_assessment.AddRange(seedData);
 
                 _dbContext.SaveChanges();
             } catch(Exception ex) {

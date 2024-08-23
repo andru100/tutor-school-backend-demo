@@ -9,6 +9,10 @@ using System.IO;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
+using Azure.Storage.Blobs;
+using Azure.Storage.Blobs.Models;
+using Azure.Identity;
+
 using AccountController; 
 using Amazon.S3.Model;
 using System;
@@ -30,12 +34,10 @@ public class UploadController  : ControllerBase
     private readonly HttpClient _httpClient;
     private readonly IConfiguration _configuration;
     private readonly UserManager<ApplicationUser> _userManager;
-    private readonly string _awsAccessKeyId;
-    private readonly string _awsSecretAccessKey;
-    private readonly string _awsBucketName;
+    private readonly string _azureBlobConnectionString;
+    private readonly string _azureBlobContainerName;
     private readonly GetStudentService _getStudentService;
 
-  
 
     public UploadController(ApplicationDbContext dbContext, IConfiguration configuration, HttpClient httpClient, UserManager<ApplicationUser> userManager, GetStudentService getStudentService)
     {
@@ -43,58 +45,85 @@ public class UploadController  : ControllerBase
         _httpClient = httpClient;
         _configuration = configuration;
         _userManager = userManager;
-        _awsAccessKeyId = _configuration["AWS_ACCESS_KEY_ID"];
-        _awsSecretAccessKey = _configuration["AWS_SECRET_ACCESS_KEY"];
-        _awsBucketName = _configuration["AWS_BUCKET_NAME"];
         _getStudentService = getStudentService;
     }
 
-    [HttpPost("ProfileImgUpload")] 
+    [HttpPost("ProfileImgUpload")]
     [Authorize(Policy = "Student")]
-    public async Task<IActionResult> ProfileImgUpload(HttpContext context)
+    public async Task<IActionResult> ProfileImgUpload()
     {
-        var file = context.Request.Form.Files.FirstOrDefault();
+        Console.WriteLine("\n\nprofil img upload called\n\n");
+        var file = HttpContext.Request.Form.Files.FirstOrDefault();
 
         if (file == null || file.Length == 0)
         {
-            return BadRequest();
+            return BadRequest("No file uploaded.");
         }
 
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        var foundStudent = await _dbContext.students.FirstOrDefaultAsync(s => s.studentId == userId);
+        if (userId == null)
+        {
+            return BadRequest("User ID not found.");
+        }
+
+        // Check the user's role
+        var userRole = User.FindFirstValue(ClaimTypes.Role);
+        if (userRole == null)
+        {
+            return BadRequest("User role not found.");
+        }
+
+        // Find the corresponding record based on the role
+        dynamic foundUser = null;
+        if (userRole == "Student")
+        {
+            foundUser = await _dbContext.students.FirstOrDefaultAsync(s => s.studentId == userId);
+        }
+        else if (userRole == "Teacher")
+        {
+            foundUser = await _dbContext.teachers.FirstOrDefaultAsync(t => t.teacherId == userId);
+        }
+
+        if (foundUser == null)
+        {
+            return BadRequest($"{userRole} not found.");
+        }
 
         string filePath;
         using (var newMemoryStream = new MemoryStream())
         {
             file.CopyTo(newMemoryStream);
 
-            var objectKey = file.FileName;
-            var bucketName = _awsBucketName;
+            var storageAccountName = _configuration["AzureBlobStorage:AccountName"];
+            var containerName = _configuration["AzureBlobStorage:ContainerName"];
 
-            var uploadRequest = new TransferUtilityUploadRequest
+            if (string.IsNullOrEmpty(storageAccountName) || string.IsNullOrEmpty(containerName))
             {
-                InputStream = newMemoryStream,
-                Key = objectKey,
-                BucketName = _awsBucketName
-            };
+                return BadRequest("Azure storage account name or container name is not configured.");
+            }
 
-            var client = new AmazonS3Client(_awsAccessKeyId, _awsSecretAccessKey, RegionEndpoint.EUWest2);
+            var blobServiceClient = new BlobServiceClient(
+                new Uri($"https://{storageAccountName}.blob.core.windows.net"),
+                new DefaultAzureCredential()
+            );
 
-            var fileTransferUtility = new TransferUtility(client);
+            var blobContainerClient = blobServiceClient.GetBlobContainerClient(containerName);
+            var blobClient = blobContainerClient.GetBlobClient(file.FileName);
+
             try
             {
-                await fileTransferUtility.UploadAsync(uploadRequest);
+                newMemoryStream.Position = 0;
+                await blobClient.UploadAsync(newMemoryStream, new BlobHttpHeaders { ContentType = file.ContentType });
 
                 Console.WriteLine("File uploaded successfully");
 
-                var fileUrl = $"https://{bucketName}.s3.amazonaws.com/{objectKey}";
+                var fileUrl = blobClient.Uri.ToString();
 
-                foundStudent.profileImgUrl = fileUrl;
+                foundUser.profileImgUrl = fileUrl;
 
-                await _dbContext.SaveChangesAsync(); 
+                await _dbContext.SaveChangesAsync();
 
-                return Ok(new{fileUrl});
-                
+                return Ok(new { fileUrl });
             }
             catch (Exception ex)
             {
@@ -104,25 +133,28 @@ public class UploadController  : ControllerBase
                 {
                     Console.WriteLine($"Inner Exception: {ex.InnerException.Message}");
                 }
-                return BadRequest();  
+                return BadRequest("File upload failed.");
             }
-
-            return BadRequest();
         }
     }
 
-    //TODO add security checks to make sure studentid matches homework assignment. to avoid any student uploading to records that arent theres.
 
-    [HttpPost("HomeworkImgUpload")] 
+    [HttpPost("HomeworkImgUpload/{id}")]
     [Authorize(Policy = "Student")]
-    public async Task<IActionResult> HomeworkImgUpload(HttpContext context)
+    public async Task<IActionResult> HomeworkImgUpload(int id)
     {
-        var file = context.Request.Form.Files.FirstOrDefault();
-        var id = int.Parse(context.Request.RouteValues["id"].ToString());
+        Console.WriteLine("\n\nhomework img upload called\n\n");
+        var file = HttpContext.Request.Form.Files.FirstOrDefault();
 
         if (file == null || file.Length == 0)
         {
-            return BadRequest();
+            return BadRequest("No file uploaded.");
+        }
+
+        var homework = await _dbContext.homework_assignments.FindAsync(id);
+        if (homework == null)
+        {
+            return BadRequest("Homework assignment not found.");
         }
 
         string filePath;
@@ -130,80 +162,76 @@ public class UploadController  : ControllerBase
         {
             file.CopyTo(newMemoryStream);
 
-            var objectKey = file.FileName;
-            var bucketName = _awsBucketName;
+            var storageAccountName = _configuration["AzureBlobStorage:AccountName"];
+            var containerName = _configuration["AzureBlobStorage:ContainerName"];
 
-            var uploadRequest = new TransferUtilityUploadRequest
+            if (string.IsNullOrEmpty(storageAccountName) || string.IsNullOrEmpty(containerName))
             {
-                InputStream = newMemoryStream,
-                Key = objectKey,
-                BucketName = _awsBucketName
-            };
+                return BadRequest("Azure storage account name or container name is not configured.");
+            }
 
-            var client = new AmazonS3Client(_awsAccessKeyId, _awsSecretAccessKey, RegionEndpoint.EUWest2);
+            var blobServiceClient = new BlobServiceClient(
+                new Uri($"https://{storageAccountName}.blob.core.windows.net"),
+                new DefaultAzureCredential()
+            );
 
-            var fileTransferUtility = new TransferUtility(client);
+            var blobContainerClient = blobServiceClient.GetBlobContainerClient(containerName);
+            var blobClient = blobContainerClient.GetBlobClient(file.FileName);
+
             try
             {
-                await fileTransferUtility.UploadAsync(uploadRequest);
+                newMemoryStream.Position = 0;
+                await blobClient.UploadAsync(newMemoryStream, new BlobHttpHeaders { ContentType = file.ContentType });
 
-                Console.WriteLine("File uploaded successfully");
+                Console.WriteLine("AAAAAFile uploaded successfully");
 
-                var fileUrl = $"https://{bucketName}.s3.amazonaws.com/{objectKey}";
+                var fileUrl = blobClient.Uri.ToString();
 
-                var homework = await _dbContext.homework_assignments.FindAsync(id);
-
-                if (homework != null)
+                if (IsAiHomeworkFeedbackEnabled()) 
                 {
-                    if (IsAiHomeworkFeedbackEnabled()) 
-                    {
-                        var img2txt = new TxtExtractor(_httpClient, _configuration);
-                        var text = await img2txt.AnalyseImage(fileUrl);
+                    var img2txt = new TxtExtractor(_httpClient, _configuration);
+                    var text = await img2txt.AnalyseImage(fileUrl);
 
-                        var stream = homework.stream.ToString();
-                        var HomeworkInput = new HomeworkFeedbackInput { instructions = homework.description, submission = text, stream = stream };
+                    var stream = homework.stream.ToString();
+                    var HomeworkInput = new HomeworkFeedbackInput { instructions = homework.description, submission = text, stream = stream };
+                    Console.WriteLine("calling homework feedback agent");
+                    var aiTeacher = new Assistant(_httpClient, _configuration);
+                    var aiFeedback = await aiTeacher.HomeworkFeedbackAgent(HomeworkInput);
 
-                        
-                        var aiTeacher = new Assistant(_httpClient, _configuration);
-                        var aiFeedback = await aiTeacher.HomeworkFeedbackAgent(HomeworkInput);
-
-                        homework.isSubmitted = true;
-                        homework.submissionContentType = SubmissionContentType.Image;
-                        homework.submissionContent = fileUrl;
-                        homework.aiFeedback = aiFeedback;
-                        homework.dueDate = DateTime.UtcNow;
-                        homework.submissionDate = DateTime.UtcNow;
-                        _dbContext.Update(homework);
-                        await _dbContext.SaveChangesAsync();
-                        var student = await _getStudentService.GetStudentByIdAsync(homework.studentId);
-                        return Ok(student);
-                    }
-                    else
-                    {
-                        homework.isSubmitted = true;
-                        homework.submissionContentType = SubmissionContentType.Image;
-                        homework.submissionContent = fileUrl;
-                        homework.dueDate = DateTime.UtcNow;
-                        homework.submissionDate = DateTime.UtcNow;
-                        _dbContext.Update(homework);
-                        await _dbContext.SaveChangesAsync();
-                        var student = await _getStudentService.GetStudentByIdAsync(homework.studentId);
-                        return Ok(student);
-                    }
+                    homework.isSubmitted = true;
+                    homework.submissionContentType = SubmissionContentType.Image;
+                    homework.submissionContent = fileUrl;
+                    homework.aiFeedback = aiFeedback;
+                    homework.dueDate = DateTime.UtcNow;
+                    homework.submissionDate = DateTime.UtcNow;
+                    _dbContext.Update(homework);
+                    await _dbContext.SaveChangesAsync();
+                    var student = await _getStudentService.GetStudentByIdAsync(homework.studentId);
+                    return Ok(student);
+                }
+                else
+                {
+                    homework.isSubmitted = true;
+                    homework.submissionContentType = SubmissionContentType.Image;
+                    homework.submissionContent = fileUrl;
+                    homework.dueDate = DateTime.UtcNow;
+                    homework.submissionDate = DateTime.UtcNow;
+                    _dbContext.Update(homework);
+                    await _dbContext.SaveChangesAsync();
+                    var student = await _getStudentService.GetStudentByIdAsync(homework.studentId);
+                    return Ok(student);
                 }
             }
             catch (Exception ex)
             {
                 // Upload failed
-                Console.WriteLine("File upload failed: " + ex.Message);
+                Console.WriteLine("An error occured during homework image upload: " + ex.Message);
                 if (ex.InnerException != null)
                 {
                     Console.WriteLine($"Inner Exception: {ex.InnerException.Message}");
                 }
-                return BadRequest();  
+                return BadRequest("File upload failed.");
             }
-
-            return BadRequest();
         }
     }
 
@@ -212,12 +240,31 @@ public class UploadController  : ControllerBase
     [Authorize(Policy = "Student")]
     public async Task<IActionResult> HomeworkDocumentUpload(HttpContext context)
     {
+        Console.WriteLine("\n\nhomework document upload called\n\n");
         var file = context.Request.Form.Files.FirstOrDefault();
         var id = int.Parse(context.Request.RouteValues["id"].ToString());
 
         if (file == null || file.Length == 0)
         {
-            return BadRequest();
+            return BadRequest("No file uploaded.");
+        }
+
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null)
+        {
+            return BadRequest("User ID not found.");
+        }
+
+        var homework = await _dbContext.homework_assignments.FindAsync(id);
+        if (homework == null)
+        {
+            return BadRequest("Homework assignment not found.");
+        }
+
+        // Check if the user is authorized to upload for this homework assignment
+        if (homework.studentId != userId && homework.teacherId != userId)
+        {
+            return Forbid("You are not authorized to upload for this homework assignment.");
         }
 
         string filePath;
@@ -225,66 +272,64 @@ public class UploadController  : ControllerBase
         {
             file.CopyTo(newMemoryStream);
 
-            var objectKey = file.FileName;
-            var bucketName = _awsBucketName;
+            var storageAccountName = _configuration["AzureBlobStorage:AccountName"];
+            var containerName = _configuration["AzureBlobStorage:ContainerName"];
 
-            var uploadRequest = new TransferUtilityUploadRequest
+            if (string.IsNullOrEmpty(storageAccountName) || string.IsNullOrEmpty(containerName))
             {
-                InputStream = newMemoryStream,
-                Key = objectKey,
-                BucketName = _awsBucketName
-            };
+                return BadRequest("Azure storage account name or container name is not configured.");
+            }
 
-            var client = new AmazonS3Client(_awsAccessKeyId, _awsSecretAccessKey, RegionEndpoint.EUWest2);
+            var blobServiceClient = new BlobServiceClient(
+                new Uri($"https://{storageAccountName}.blob.core.windows.net"),
+                new DefaultAzureCredential()
+            );
 
-            var fileTransferUtility = new TransferUtility(client);
+            var blobContainerClient = blobServiceClient.GetBlobContainerClient(containerName);
+            var blobClient = blobContainerClient.GetBlobClient(file.FileName);
+
             try
             {
-                await fileTransferUtility.UploadAsync(uploadRequest);
+                newMemoryStream.Position = 0;
+                await blobClient.UploadAsync(newMemoryStream, new BlobHttpHeaders { ContentType = file.ContentType });
 
                 Console.WriteLine("File uploaded successfully");
 
-                var fileUrl = $"https://{bucketName}.s3.amazonaws.com/{objectKey}";
+                var fileUrl = blobClient.Uri.ToString();
 
-                var homework = await _dbContext.homework_assignments.FindAsync(id);
-
-                if (homework != null)
+                if (IsAiHomeworkFeedbackEnabled()) 
                 {
-                    if (IsAiHomeworkFeedbackEnabled()) 
-                    {
-                        var doc2txt = new TxtExtractor(_httpClient, _configuration) ;
-                        var text = await doc2txt.AnalyseDocument(fileUrl);
+                    var doc2txt = new TxtExtractor(_httpClient, _configuration);
+                    var text = await doc2txt.AnalyseDocument(fileUrl);
 
-                        var stream = homework.stream.ToString();
-                        var HomeworkInput = new HomeworkFeedbackInput { instructions = homework.description, submission = text, stream = stream };
+                    var stream = homework.stream.ToString();
+                    var HomeworkInput = new HomeworkFeedbackInput { instructions = homework.description, submission = text, stream = stream };
 
-                        
-                        var aiTeacher = new Assistant(_httpClient, _configuration);
-                        var aiFeedback = await aiTeacher.HomeworkFeedbackAgent(HomeworkInput);
+                                    var aiTeacher = new Assistant(_httpClient, _configuration);
+                    var aiFeedback = await aiTeacher.HomeworkFeedbackAgent(HomeworkInput);
 
-                        homework.isSubmitted = true;
-                        homework.submissionContentType = SubmissionContentType.Image;
-                        homework.submissionContent = fileUrl;
-                        homework.aiFeedback = aiFeedback;
-                        homework.dueDate = DateTime.UtcNow;
-                        homework.submissionDate = DateTime.UtcNow;
-                        _dbContext.Update(homework);
-                        await _dbContext.SaveChangesAsync();
-                        var student = await _getStudentService.GetStudentByIdAsync(homework.studentId);
-                        return Ok(student);
-                    }
-                    else
-                    {
-                        homework.isSubmitted = true;
-                        homework.submissionContentType = SubmissionContentType.Image;
-                        homework.submissionContent = fileUrl;
-                        homework.dueDate = DateTime.UtcNow;
-                        homework.submissionDate = DateTime.UtcNow;
-                        _dbContext.Update(homework);
-                        await _dbContext.SaveChangesAsync();
-                        var student = await _getStudentService.GetStudentByIdAsync(homework.studentId);
-                        return Ok(student);
-                    }
+                    homework.isSubmitted = true;
+                    homework.submissionContentType = SubmissionContentType.Document;
+                    homework.submissionContent = fileUrl;
+                    homework.aiFeedback = aiFeedback;
+                    homework.dueDate = DateTime.UtcNow;
+                    homework.submissionDate = DateTime.UtcNow;
+                    _dbContext.Update(homework);
+                    await _dbContext.SaveChangesAsync();
+                    var student = await _getStudentService.GetStudentByIdAsync(homework.studentId);
+                    return Ok(student);
+                }
+                else
+                {
+                    homework.isSubmitted = true;
+                    homework.submissionContentType = SubmissionContentType.Document;
+                    homework.submissionContent = fileUrl;
+                    homework.dueDate = DateTime.UtcNow;
+                    homework.submissionDate = DateTime.UtcNow;
+                    _dbContext.Update(homework);
+                    await _dbContext.SaveChangesAsync();
+                    var student = await _getStudentService.GetStudentByIdAsync(homework.studentId);
+                    return Ok(student);
                 }
             }
             catch (Exception ex)
@@ -295,10 +340,8 @@ public class UploadController  : ControllerBase
                 {
                     Console.WriteLine($"Inner Exception: {ex.InnerException.Message}");
                 }
-                return BadRequest();  
+                return BadRequest("File upload failed.");
             }
-
-            return BadRequest();
         }
     }
 
@@ -310,7 +353,24 @@ public class UploadController  : ControllerBase
         {
             if (homeworkUploadData != null)
             {
+                
+                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                if (userId == null)
+                {
+                    return BadRequest("User ID not found.");
+                }
+
                 var homework = await _dbContext.homework_assignments.FindAsync(homeworkUploadData.id);
+                if (homework == null)
+                {
+                    return BadRequest("Homework assignment not found.");
+                }
+
+                // Check if the user is authorized to upload for this homework assignment
+                if (homework.studentId != userId && homework.teacherId != userId)
+                {
+                    return Forbid("You are not authorized to upload for this homework assignment.");
+                }
 
                 if (IsAiHomeworkFeedbackEnabled())
                 {
